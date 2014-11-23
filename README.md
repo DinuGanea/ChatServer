@@ -1,4 +1,4 @@
-ChatServer
+Chat (Server)
 ==========
 
-Chat application using Java (Server)
+Creating a chat application using Java
