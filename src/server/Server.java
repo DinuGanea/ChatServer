@@ -1,11 +1,11 @@
 package server;
 
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,7 +17,8 @@ import server.net.packets.Packet;
 import server.net.packets.Packet01Connect;
 import server.net.packets.Packet02Message;
 import server.net.packets.Packet99Error;
-import server.net.socket.MessagesTCP;
+import server.net.socket.tcp.SocketTCP;
+import server.net.socket.udp.SocketUDP;
 import server.user.User;
 import server.util.YamlUtil;
 
@@ -33,8 +34,9 @@ public class Server {
 	
 	private static Map<String, Object> cfgs;
 	private ServerSocket serverSocket;
-	private MessagesTCP msTCP;
-	private Thread recieve;
+	private SocketTCP tcp;
+	private SocketUDP udp;
+	private Thread recieve, receiveUDP;
 	private Server server;
 	private int port;
 	
@@ -56,7 +58,7 @@ public class Server {
 			try {
 				socket = serverSocket.accept();
 				
-				String text = msTCP.recieveMessage(socket);
+				String text = tcp.recieveMessage(socket);
 				
 				if (text != null) {
 					parseMessage(text, socket);	
@@ -64,10 +66,21 @@ public class Server {
 			} catch (IOException e) {
 				if (socket != null) {
 					log.warn("Cannot accept client [{}:{}] connection request!", socket.getInetAddress(), socket.getPort());
-					e.printStackTrace();
+					//e.printStackTrace();
 				} else {
 					log.warn("Cannot accept client [unknown:unknown] connection request!");
 				}
+			}
+		}
+	}
+	
+	private void receiveUDP(int dataLength) {
+		System.out.println("Server (UDP) started!");
+		while (true) {
+			try {
+				System.out.println("UDP: " + udp.receiveMessage(dataLength));
+			} catch (IOException e) {
+				log.warn("Cannot receive messages (UDP) with. {}", e.toString());
 			}
 		}
 	}
@@ -88,7 +101,7 @@ public class Server {
 
 		switch(code) {
 			case "00" :
-				removeUser(username, socket);
+				removeUser(username);
 				break;
 			case "01" :
 				if (addUser(username, socket)) {
@@ -115,7 +128,7 @@ public class Server {
 	}
 	
 	
-	private void removeUser(String username, Socket socket) {
+	private void removeUser(String username) {
 		for (int i = 0; i < connectedUsers.size(); i++) {
 			if (connectedUsers.get(i).tellYourName().equalsIgnoreCase(username)) {
 				connectedUsers.remove(i);
@@ -136,11 +149,15 @@ public class Server {
 		}
 	}
 	
-	private void sendMessage(Packet packet) throws IOException {
+	private void sendMessage(Packet packet) {
 		Socket socket = null;
 		for (User user : connectedUsers) {
 			socket = user.giveConnectionSocket();
-			msTCP.sendMessage(socket, packet.returnMessage());
+			try {
+				tcp.sendMessage(socket, packet.returnMessage());
+			} catch (IOException e) {
+				removeUser(user.tellYourName());
+			}
 		}
 	}
 	
@@ -168,30 +185,32 @@ public class Server {
 			System.exit(2);
 		}
 		
-		
-		msTCP = new MessagesTCP();
-		
+		try {
+			udp = new SocketUDP(port);
+		} catch(SocketException e) {
+			log.warn("Cannot start server (UDP) on port {}. {}", port, e.getMessage());
+		}
+	
+		tcp = new SocketTCP();
 		try {
 			serverSocket = new ServerSocket(port);
 		} catch (IOException e) {
-			log.error("Cannot start the server on port {}", this.port);
+			log.error("Cannot start the server (TCP) on port {}. {}", port, e.getMessage());
 			System.exit(0);
 		}
 		
-		recieve = new Thread("RecieveMessages") {
+		recieve = new Thread("TCP receiver") {
 			public void run() {
 				receive();
 			}
 		};
 		
-		recieve.start();			
+		recieve.start();
+				
 	}
 
-	
-	
 	public static void main(String args[]) {
 		new Server();
 	}
 	
-
 }

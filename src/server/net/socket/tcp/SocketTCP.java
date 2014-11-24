@@ -1,4 +1,4 @@
-package server.net.socket;
+package server.net.socket.tcp;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -7,10 +7,10 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 
 
-public class MessagesTCP {
+public class SocketTCP {
 	
 	
-	public MessagesTCP() {
+	public SocketTCP() {
 	}
 
 	public void sendMessage(Socket socket, String message) throws IOException {
